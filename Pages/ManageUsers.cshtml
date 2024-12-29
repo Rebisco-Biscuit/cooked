@@ -1,0 +1,38 @@
+@page
+@model YourNamespace.Pages.ManageUsersModel
+@{
+    ViewData["Title"] = "Manage Users";
+}
+
+<h2>Manage Users</h2>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Username</th>
+            <th>Role</th>
+            <th>Joined Date</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var user in Model.Users)
+        {
+            <tr>
+                <td>@user.Username</td>
+                <td>@user.Role</td>
+                <td>@user.JoinedDate.ToString("yyyy-MM-dd")</td>
+                <td style="display: ruby;">
+                    <form method="post" asp-page-handler="Delete" asp-route-username="@user.Username" style="display:inline;">
+                        <button class="btn btn-danger" type="submit">Delete</button>
+                    </form>
+                    <form method="post" asp-page-handler="ChangeRole" style="display:inline;">
+                        <input type="hidden" name="username" value="@user.Username" />
+                        <input type="text" class="form-control" style="width: 25%; margin-left: 10%;" name="newRole" placeholder="New Role" />
+                        <button class="btn btn-primary" type="submit">Change Role</button>
+                    </form>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

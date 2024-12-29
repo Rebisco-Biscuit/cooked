@@ -1,0 +1,42 @@
+@page
+@model CreatePostModel
+@{
+    ViewData["Title"] = "CreatePost";
+}
+
+<div class="container mt-5">
+    <h1>Create a New Post</h1>
+    <form method="post" enctype="multipart/form-data">
+        <div class="mb-3">
+            <label for="PostTitle" class="form-label">Title</label>
+            <input type="text" id="PostTitle" name="PostTitle" class="form-control" required />
+        </div>
+        <div class="mb-3">
+            <label for="PostContent" class="form-label">Content</label>
+            <textarea id="PostContent" name="PostContent" class="form-control" rows="5" required></textarea>
+        </div>
+        <div class="mb-3">
+            <label for="AttachedImage" class="form-label">Attach an Image</label>
+            <input type="file" id="AttachedImage" name="AttachedImage" class="form-control" accept="image/*" />
+        </div>
+        <div class="mb-3">
+            <label for="TopicTag" class="form-label">Topic Tag</label>
+            <select id="TopicTag" name="TopicTag" class="form-select">
+                <option value="Random" selected>Random</option>
+                <option value="Help">Help</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Post</button>
+        <a href="/MainPage" class="btn btn-secondary">Discard</a>
+    </form>
+
+    @if (Model.ErrorMessage != null)
+    {
+        <div class="alert alert-danger mt-3">@Model.ErrorMessage</div>
+    }
+
+    @if (Model.SuccessMessage != null)
+    {
+        <div class="alert alert-success mt-3">@Model.SuccessMessage</div>
+    }
+</div>
