@@ -34,12 +34,37 @@ namespace PCF.Pages
 
 public async Task<IActionResult> OnPostSaveProfile(string petInfo, IFormFile ProfilePicUrl)
 {
+    string imagePath = null;
+    string profPicToDB = null;
+
     if(ProfilePicUrl == null){
         Console.WriteLine("@@@@Prof Pic is null");
     }
-    Console.WriteLine("@@@URL:" + ProfilePicUrl.FileName);
+    if (ProfilePicUrl != null && ProfilePicUrl.Length > 0)
+    {
+         // Extract the file extension (e.g., ".jpg", ".png")
+        var fileExtension = Path.GetExtension(ProfilePicUrl.FileName);
+
+        // Generate a unique filename using a GUID or timestamp
+        var uniqueFileName = $"{Path.GetFileNameWithoutExtension(ProfilePicUrl.FileName)}_{Guid.NewGuid()}{fileExtension}";
+
+        string uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "profpics");
+        if (!Directory.Exists(uploadsFolder))
+        {
+            Directory.CreateDirectory(uploadsFolder);
+        }
+
+        imagePath = Path.Combine("profpics", uniqueFileName);
+        string fullPath = Path.Combine(uploadsFolder, uniqueFileName);
+        profPicToDB = imagePath;
+
+        using (var stream = new FileStream(fullPath, FileMode.Create))
+        {
+            ProfilePicUrl.CopyTo(stream);
+        }
+    }
     int? userId = HttpContext.Session.GetInt32("UserId");
-    string profilePicUrlDB;
+    string profilePicUrlFromDB;
     if (!userId.HasValue)
     {
         Console.WriteLine("User not logged in.");
@@ -62,7 +87,7 @@ public async Task<IActionResult> OnPostSaveProfile(string petInfo, IFormFile Pro
                         if (reader.Read())
                         {
                             var currentPetInfo = reader["pet_info"]?.ToString();
-                            profilePicUrlDB = reader["profile_pic_url"]?.ToString();
+                            profilePicUrlFromDB = reader["profile_pic_url"]?.ToString();
                         }
                     }
                 }
@@ -75,111 +100,74 @@ public async Task<IActionResult> OnPostSaveProfile(string petInfo, IFormFile Pro
             {
                 Console.WriteLine($"Unexpected error: {ex.Message}"); // Log other exceptions
             }
-        
-    
-    // Handle profile picture upload
-    if (ProfilePicUrl != null && ProfilePicUrl.Length > 0)
-    {
-        string uploadsFolder = "/images/";
-        //Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads");
 
-        // Ensure uploads folder exists
-        if (!Directory.Exists(uploadsFolder))
-        {
-            Directory.CreateDirectory(uploadsFolder);
-        }
-
-        // Generate a unique file name to prevent conflicts
-
-        //string fileName = Path.GetFileNameWithoutExtension(ProfilePicUrl.FileName);
-        //string extension = Path.GetExtension(ProfilePicUrl.FileName);
-        //string uniqueFileName = $"{fileName}_{Guid.NewGuid()}{extension}";
-
-        //profilePicUrl = Path.Combine("uploads", uniqueFileName);
-        //string fullPath = Path.Combine(uploadsFolder, uniqueFileName);
-        //Console.WriteLine(fullPath);
-
-        // Save the uploaded file to disk
-
-        // using (var stream = new FileStream(fullPath, FileMode.Create))
-        // {
-        //     ProfilePicUrl.CopyTo(stream);
-        // }
-    }
-
-        SaveProfile(userId.Value, petInfo, ProfilePicUrl);
+        SaveProfile(userId.Value, petInfo, profPicToDB);
     }
     return RedirectToPage("/Profile");
 }
 
-        public void SaveProfile(int userId, string petInfo, string profilePicUrl)
+public void SaveProfile(int userId, string petInfo, string profPicToDB)
+{
+    Console.WriteLine($"==== SaveProfile PetInfo: {petInfo}");
+    Console.WriteLine($"==== SaveProfile PicToDB: {profPicToDB}");
+
+    using (var conn = new MySqlConnection(connectionString))
+    {
+        try
         {
-            Console.WriteLine("==== SaveProfle");
-            Console.WriteLine("==== SaveProfle" + petInfo);
+            conn.Open();
 
-            Console.WriteLine("==== SaveProfle" + profilePicUrl);
+            // Fetch current profile data
+            var currentProfileQuery = "SELECT pet_info, profile_pic_url FROM users WHERE user_id = @UserId";
+            using (var fetchCmd = new MySqlCommand(currentProfileQuery, conn))
+            {
+                fetchCmd.Parameters.AddWithValue("@UserId", userId);
 
-            // using (var conn = new MySqlConnection(connectionString))
-            // {
-            //     try
-            //     {
-            //         conn.Open();
-            //         // Fetch current profile data
-            //         var currentProfileQuery = "SELECT pet_info, profile_pic_url FROM users WHERE user_id = @UserId";
-            //         using (var fetchCmd = new MySqlCommand(currentProfileQuery, conn))
-            //         {
-            //             fetchCmd.Parameters.AddWithValue("@UserId", userId);
+                using (var reader = fetchCmd.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        var currentPetInfo = reader["pet_info"]?.ToString();
+                        var currentProfilePicUrl = reader["profile_pic_url"]?.ToString();
 
-            //             using (var reader = fetchCmd.ExecuteReader())
-            //             {
-            //                 if (reader.Read())
-            //                 {
-            //                     var currentPetInfo = reader["pet_info"]?.ToString();
-            //                     string currentProfilePicUrl = reader["profile_pic_url"]?.ToString();
+                        // If no changes detected, return early
+                        if (string.Equals(currentPetInfo, petInfo) && string.Equals(currentProfilePicUrl, profPicToDB))
+                        {
+                            Console.WriteLine("No changes detected. Exiting.");
+                            return;
+                        }
+                    }
+                }
+            }
 
-            //                     if (string.Equals(profilePicUrl, currentProfilePicUrl))
-            //                     {
-            //                         profilePicUrl = currentProfilePicUrl;
-            //                         Console.WriteLine("ajsdja" + profilePicUrl);
-            //                     }
+            // Update the profile if there are changes
+            var updateQuery = @"
+                UPDATE users 
+                SET pet_info = @PetInfo, 
+                    profile_pic_url = @ProfilePicUrl 
+                WHERE user_id = @UserId";
 
-            //                     // If no changes detected, return early
-            //                     if (currentPetInfo == petInfo && currentProfilePicUrl == profilePicUrl)
-            //                     {
-            //                         Console.WriteLine("No Changes detected.");
-            //                         conn.Close();
-            //                         return;
-            //                     }
-            //                 }
-            //             }
-            //         }
-                    
-            //         // Update the profile only if there are changes
-            //         var updateQuery = @"
-            //             UPDATE users 
-            //             SET pet_info = @PetInfo, 
-            //                 profile_pic_url = @ProfilePicUrl 
-            //             WHERE user_id = @UserId";
+            using (var updateCmd = new MySqlCommand(updateQuery, conn))
+            {
+                updateCmd.Parameters.AddWithValue("@PetInfo", string.IsNullOrWhiteSpace(petInfo) ? (object)DBNull.Value : petInfo);
+                updateCmd.Parameters.AddWithValue("@ProfilePicUrl", string.IsNullOrWhiteSpace(profPicToDB) ? (object)DBNull.Value : profPicToDB);
+                updateCmd.Parameters.AddWithValue("@UserId", userId);
 
-            //         using (var updateCmd = new MySqlCommand(updateQuery, conn))
-            //         {
-            //             updateCmd.Parameters.AddWithValue("@PetInfo", string.IsNullOrWhiteSpace(petInfo) ? DBNull.Value : petInfo);
-            //             updateCmd.Parameters.AddWithValue("@ProfilePicUrl", profilePicUrl ?? (object)DBNull.Value);
-            //             updateCmd.Parameters.AddWithValue("@UserId", userId);
-
-            //             updateCmd.ExecuteNonQuery();
-            //         }
-            //     }
-            //     catch (MySqlException sqlEx)
-            //     {
-            //         Console.WriteLine($"Database error: {sqlEx.Message}"); // Log MySQL-specific errors
-            //     }
-            //     catch (Exception ex)
-            //     {
-            //         Console.WriteLine($"Unexpected error: {ex.Message}"); // Log other exceptions
-            //     }
-            // }
+                int rowsAffected = updateCmd.ExecuteNonQuery();
+                Console.WriteLine(rowsAffected > 0 ? "Profile updated successfully." : "No changes made to the profile.");
+            }
         }
+        catch (MySqlException sqlEx)
+        {
+            Console.WriteLine($"Database error: {sqlEx.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Unexpected error: {ex.Message}");
+        }
+    }
+}
+
 
         public UserProfile GetUserProfile(int userId)
         {
