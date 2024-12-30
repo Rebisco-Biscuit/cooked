@@ -28,8 +28,17 @@
                     </form>
                     <form method="post" asp-page-handler="ChangeRole" style="display:inline;">
                         <input type="hidden" name="username" value="@user.Username" />
-                        <input type="text" class="form-control" style="width: 25%; margin-left: 10%;" name="newRole" placeholder="New Role" />
-                        <button class="btn btn-primary" type="submit">Change Role</button>
+                        
+                        <select name="newRole" class="form-control" style="width: auto; display:inline-block; margin-left:10px;">
+                            @foreach (var role in Model.RolesList)
+                            {
+                                <option value="@role" selected="@(role == user.Role)">
+                                    @role
+                                </option>
+                            }
+                        </select>
+
+                        <button class="btn btn-primary" type="submit" style="margin-left: 10px;">Change Role</button>
                     </form>
                 </td>
             </tr>

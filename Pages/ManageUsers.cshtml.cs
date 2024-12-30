@@ -10,10 +10,12 @@ namespace YourNamespace.Pages
         public string connectionString = "Server=localhost;Port=3306;Database=cis2103_pcf;User ID=root;Password=;";
 
         public List<User> Users { get; set; } = new();
+        public List<string> RolesList { get; set; } = new();
 
         public void OnGet()
         {
             PopulateUserTable();
+            RolesList = GetEnumValuesFromDatabase(); 
         }
 
         private void PopulateUserTable()
@@ -60,12 +62,6 @@ namespace YourNamespace.Pages
 
         public IActionResult OnPostChangeRole(string username, string newRole)
         {
-            if (newRole != "admin" && newRole != "moderator" && newRole != "user")
-            {
-                ModelState.AddModelError("", "Invalid role. Please enter 'admin', 'moderator', or 'user'.");
-                return Page();
-            }
-
             using (var conn = new MySqlConnection(connectionString))
             {
                 conn.Open();
@@ -88,5 +84,35 @@ namespace YourNamespace.Pages
             public string Role { get; set; }
             public DateTime JoinedDate { get; set; }
         }
+        private List<string> GetEnumValuesFromDatabase()
+        {
+            var roles = new List<string>();
+
+            using (var conn = new MySqlConnection(connectionString))
+            {
+                conn.Open();
+
+                var query = "SHOW COLUMNS FROM users LIKE 'role';";
+                using (var cmd = new MySqlCommand(query, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        var typeInfo = reader["Type"].ToString(); 
+                        if (typeInfo.StartsWith("enum("))
+                        {
+                            var rawRoles = typeInfo
+                                .Replace("enum(", "")
+                                .TrimEnd(')')
+                                .Replace("'", "");
+                            roles = rawRoles.Split(',').ToList();
+                        }
+                    }
+                }
+            }
+
+            return roles;
+        }
+
     }
 }
